@@ -1044,6 +1044,9 @@ export const PortfolioProvider = ({ children }) => {
   return (
     <PortfolioContext.Provider value={{
       portfolios: state.portfolios,
+      comments: state.comments,
+      likes: state.likes,
+      dislikes: state.dislikes,
       addPortfolio,
       addComment,
       updateLikes,

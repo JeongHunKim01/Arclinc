@@ -1,32 +1,33 @@
 import React, { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { usePortfolio } from '../context/PortfolioContext'
-import PortfolioCard from '../components/PortfolioCard'
+import { useBoard } from '../context/BoardContext'
+import BoardPostCard from '../components/BoardPostCard'
+import CreatePostModal from '../components/CreatePostModal'
 
-const HomePage = () => {
-  const { portfolios, comments, likes, dislikes } = usePortfolio()
+const BoardPage = () => {
+  const { posts, comments, likes, dislikes } = useBoard()
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('trending')
   const [showTrendingTooltip, setShowTrendingTooltip] = useState(false)
 
-  // 트렌딩 점수 계산 (인기도 + 최근 활동도)
-  const calculateTrendingScore = (portfolio) => {
-    const portfolioId = portfolio.id
-    const viewCount = portfolio.viewCount || Math.floor(Math.random() * 1000) + 100
-    const likeCount = likes[portfolioId] || Math.floor(Math.random() * 50) + 5
-    const commentCount = (comments[portfolioId] || []).length
-    const dislikeCount = dislikes[portfolioId] || Math.floor(Math.random() * 10)
-    
+  // 트렌딩 점수 계산 함수
+  const calculateTrendingScore = (post) => {
+    const postId = post.id
+    const viewCount = post.viewCount || 0
+    const likeCount = likes[postId] || 0
+    const commentCount = (comments[postId] || []).length
+    const dislikeCount = dislikes[postId] || 0
+
     // 인기도 점수 계산 (조회수 * 0.3 + 추천수 * 0.4 + 댓글수 * 0.3 - 비추천수 * 0.1)
     const popularityScore = (viewCount * 0.3) + (likeCount * 0.4) + (commentCount * 0.3) - (dislikeCount * 0.1)
-    
-    // 최근성 보너스 (최근 30일 내 생성된 포트폴리오에 보너스)
-    const daysSinceCreation = Math.floor((new Date() - new Date(portfolio.createdAt)) / (1000 * 60 * 60 * 24))
+
+    // 최근 활동도 보너스 (최근 30일 내 게시글에 보너스)
+    const daysSinceCreation = Math.floor((new Date() - new Date(post.createdAt)) / (1000 * 60 * 60 * 24))
     const recencyBonus = Math.max(0, 30 - daysSinceCreation) * 2
-    
-    // 트렌딩 점수 = 인기도 + 최근성 보너스
+
+    // 트렌딩 점수 = 인기도 + 최근 활동도 보너스
     const trendingScore = popularityScore + recencyBonus
-    
+
     return {
       viewCount,
       likeCount,
@@ -38,20 +39,13 @@ const HomePage = () => {
     }
   }
 
-  // 검색 및 정렬된 포트폴리오
-  const filteredAndSortedPortfolios = useMemo(() => {
-    let filtered = portfolios
-
-    // 검색 필터링
-    if (searchTerm.trim()) {
-      filtered = portfolios.filter(portfolio => 
-        portfolio.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        portfolio.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        portfolio.trades.some(trade => 
-          trade.ticker.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    }
+  // 검색 및 정렬된 게시글
+  const filteredAndSortedPosts = useMemo(() => {
+    let filtered = posts.filter(post => 
+      post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      post.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      post.content.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
     // 정렬
     switch (sortBy) {
@@ -63,21 +57,28 @@ const HomePage = () => {
         })
       case 'latest':
         return [...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      case 'return-high':
-        return [...filtered].sort((a, b) => b.totalReturn - a.totalReturn)
-      case 'return-low':
-        return [...filtered].sort((a, b) => a.totalReturn - b.totalReturn)
+      case 'popular':
+        return [...filtered].sort((a, b) => {
+          const likesA = likes[a.id] || 0
+          const likesB = likes[b.id] || 0
+          const commentsA = (comments[a.id] || []).length
+          const commentsB = (comments[b.id] || []).length
+          return (likesB + commentsB) - (likesA + commentsA)
+        })
+      case 'title':
+        return [...filtered].sort((a, b) => a.title.localeCompare(b.title))
       default:
         return filtered
     }
-  }, [portfolios, searchTerm, sortBy, comments, likes, dislikes])
+  }, [posts, searchTerm, sortBy, comments, likes, dislikes])
 
   return (
     <div className="container mx-auto px-4 py-8">
       {/* 헤더 */}
       <div className="text-center mb-8">
-        <p className="text-lg text-gray-600 mb-6">
-          투자 포트폴리오를 공유하고 다른 투자자들과 소통하세요
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">자유게시판</h1>
+        <p className="text-lg text-gray-600">
+          투자 관련 이야기와 정보를 자유롭게 나누어보세요
         </p>
       </div>
 
@@ -89,7 +90,7 @@ const HomePage = () => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="포트폴리오 제목, 작성자, 종목명으로 검색..."
+                placeholder="제목, 작성자, 내용으로 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -112,11 +113,11 @@ const HomePage = () => {
               >
                 <option value="trending">트렌딩</option>
                 <option value="latest">최신순</option>
-                <option value="return-high">수익률 높은순</option>
-                <option value="return-low">수익률 낮은순</option>
+                <option value="popular">인기순</option>
+                <option value="title">제목순</option>
               </select>
-              
-              {/* 트렌딩 설명 툴팁 */}
+
+              {/* 트렌딩 설명 툴팁 버튼 */}
               {sortBy === 'trending' && (
                 <div className="relative">
                   <button
@@ -128,7 +129,7 @@ const HomePage = () => {
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  
+
                   {/* 툴팁 */}
                   {showTrendingTooltip && (
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-10">
@@ -146,37 +147,49 @@ const HomePage = () => {
               )}
             </div>
           </div>
+
+          {/* 글쓰기 버튼 */}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            글쓰기
+          </button>
         </div>
 
         {/* 검색 결과 표시 */}
         {searchTerm.trim() && (
           <div className="mt-4 text-sm text-gray-600">
-            "{searchTerm}" 검색 결과: {filteredAndSortedPortfolios.length}개의 포트폴리오
+            "{searchTerm}" 검색 결과: {filteredAndSortedPosts.length}개의 게시글
           </div>
         )}
       </div>
 
-      {/* 포트폴리오 목록 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAndSortedPortfolios.map((portfolio) => (
-          <PortfolioCard key={portfolio.id} portfolio={portfolio} />
+      {/* 게시글 목록 */}
+      <div className="space-y-4">
+        {filteredAndSortedPosts.map((post) => (
+          <BoardPostCard key={post.id} post={post} />
         ))}
       </div>
 
-      {filteredAndSortedPortfolios.length === 0 && (
+      {filteredAndSortedPosts.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 text-6xl mb-4">📊</div>
+          <div className="text-gray-400 text-6xl mb-4">📝</div>
           <h3 className="text-xl font-semibold text-gray-600 mb-2">
-            {searchTerm.trim() ? '검색 결과가 없습니다' : '아직 포트폴리오가 없습니다'}
+            {searchTerm.trim() ? '검색 결과가 없습니다' : '아직 게시글이 없습니다'}
           </h3>
           <p className="text-gray-500">
-            {searchTerm.trim() ? '다른 검색어를 시도해보세요.' : '첫 번째 포트폴리오를 만들어보세요!'}
+            {searchTerm.trim() ? '다른 검색어를 시도해보세요.' : '첫 번째 게시글을 작성해보세요!'}
           </p>
         </div>
+      )}
+
+      {/* 글쓰기 모달 */}
+      {showCreateModal && (
+        <CreatePostModal onClose={() => setShowCreateModal(false)} />
       )}
     </div>
   )
 }
 
-export default HomePage
-
+export default BoardPage

@@ -1,17 +1,25 @@
 import React, { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePortfolio } from '../context/PortfolioContext'
+import { useBoard } from '../context/BoardContext'
 import PortfolioCard from '../components/PortfolioCard'
 
 const AuthorProfilePage = () => {
   const { authorName } = useParams()
   const { portfolios } = usePortfolio()
+  const { posts, comments } = useBoard()
   const [showModal, setShowModal] = useState(false)
   const [modalType, setModalType] = useState('')
   const [modalData, setModalData] = useState([])
   
   // 해당 작성자의 포트폴리오들 필터링
   const authorPortfolios = portfolios.filter(portfolio => portfolio.author === authorName)
+  
+  // 해당 작성자의 게시글들 필터링
+  const authorPosts = posts.filter(post => post.author === authorName)
+  
+  // 해당 작성자의 댓글들 필터링
+  const authorComments = Object.values(comments).flat().filter(comment => comment.author === authorName)
   
   // 작성자 프로필 정보 (더미 데이터)
   const authorProfile = {
@@ -21,6 +29,8 @@ const AuthorProfilePage = () => {
     followers: Math.floor(Math.random() * 1000) + 100,
     following: Math.floor(Math.random() * 500) + 50,
     portfolios: authorPortfolios.length,
+    posts: authorPosts.length,
+    comments: authorComments.length,
     totalReturn: authorPortfolios.reduce((sum, portfolio) => sum + portfolio.return, 0) / authorPortfolios.length || 0,
     joinDate: '2024년 1월',
     socialLinks: {
@@ -63,11 +73,15 @@ const AuthorProfilePage = () => {
       setModalData(generateFollowing())
     } else if (type === 'portfolios') {
       setModalData(authorPortfolios)
+    } else if (type === 'posts') {
+      setModalData(authorPosts)
+    } else if (type === 'comments') {
+      setModalData(authorComments)
     }
     setShowModal(true)
   }
 
-  if (authorPortfolios.length === 0) {
+  if (authorPortfolios.length === 0 && authorPosts.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">작성자를 찾을 수 없습니다</h2>
@@ -103,25 +117,32 @@ const AuthorProfilePage = () => {
           
           {/* 작성자 정보 */}
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{authorProfile.name}</h1>
+            <div className="flex items-center space-x-4 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900">{authorProfile.name}</h1>
+              
+              {/* 팔로워/팔로잉 버튼 */}
+              <div className="flex items-center space-x-4 text-sm">
+                <button 
+                  onClick={() => handleStatClick('followers')}
+                  className="hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <span className="font-semibold text-gray-900">{authorProfile.followers.toLocaleString()}</span>
+                  <span className="ml-1">팔로워</span>
+                </button>
+                <button 
+                  onClick={() => handleStatClick('following')}
+                  className="hover:text-blue-600 transition-colors cursor-pointer"
+                >
+                  <span className="font-semibold text-gray-900">{authorProfile.following.toLocaleString()}</span>
+                  <span className="ml-1">팔로잉</span>
+                </button>
+              </div>
+            </div>
+            
             <p className="text-lg text-gray-600 mb-4">{authorProfile.bio}</p>
             
-            {/* 통계 */}
+            {/* 통계 - 포트폴리오, 평균 수익률, 게시글, 댓글 순 */}
             <div className="flex space-x-6 text-sm text-gray-500 mb-4">
-              <button 
-                onClick={() => handleStatClick('followers')}
-                className="hover:text-blue-600 transition-colors cursor-pointer"
-              >
-                <span className="font-semibold text-gray-900">{authorProfile.followers.toLocaleString()}</span>
-                <span className="ml-1">팔로워</span>
-              </button>
-              <button 
-                onClick={() => handleStatClick('following')}
-                className="hover:text-blue-600 transition-colors cursor-pointer"
-              >
-                <span className="font-semibold text-gray-900">{authorProfile.following.toLocaleString()}</span>
-                <span className="ml-1">팔로잉</span>
-              </button>
               <button 
                 onClick={() => handleStatClick('portfolios')}
                 className="hover:text-blue-600 transition-colors cursor-pointer"
@@ -135,6 +156,20 @@ const AuthorProfilePage = () => {
                 </span>
                 <span className="ml-1">평균 수익률</span>
               </div>
+              <button 
+                onClick={() => handleStatClick('posts')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-gray-900">{authorProfile.posts}</span>
+                <span className="ml-1">게시글</span>
+              </button>
+              <button 
+                onClick={() => handleStatClick('comments')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-gray-900">{authorProfile.comments}</span>
+                <span className="ml-1">댓글</span>
+              </button>
             </div>
             
             {/* 가입일 */}
@@ -186,29 +221,71 @@ const AuthorProfilePage = () => {
       </div>
 
       {/* 포트폴리오 목록 */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          {authorProfile.name}님의 포트폴리오 ({authorPortfolios.length}개)
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {authorPortfolios.map((portfolio) => (
-            <PortfolioCard key={portfolio.id} portfolio={portfolio} />
-          ))}
-        </div>
-
-        {authorPortfolios.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">
-              아직 포트폴리오가 없습니다
-            </h3>
-            <p className="text-gray-500">
-              {authorProfile.name}님이 작성한 포트폴리오가 없습니다.
-            </p>
+      {authorPortfolios.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            {authorProfile.name}님의 포트폴리오 ({authorPortfolios.length}개)
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {authorPortfolios.map((portfolio) => (
+              <PortfolioCard key={portfolio.id} portfolio={portfolio} />
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* 게시글 목록 */}
+      {authorPosts.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            {authorProfile.name}님의 게시글 ({authorPosts.length}개)
+          </h2>
+          
+          <div className="space-y-4">
+            {authorPosts.map((post) => (
+              <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
+                <p className="text-gray-600 mb-3">
+                  {post.content.length > 100 
+                    ? `${post.content.substring(0, 100)}...` 
+                    : post.content
+                  }
+                </p>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>{new Date(post.createdAt).toLocaleDateString('ko-KR')}</span>
+                  <span>조회 {post.viewCount}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 댓글 목록 */}
+      {authorComments.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            {authorProfile.name}님의 댓글 ({authorComments.length}개)
+          </h2>
+          
+          <div className="space-y-4">
+            {authorComments.map((comment) => (
+              <div key={comment.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <p className="text-gray-900 mb-2">{comment.content}</p>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span>{new Date(comment.createdAt).toLocaleDateString('ko-KR')}</span>
+                  {comment.isAuthor && (
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                      작성자
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 모달 */}
       {showModal && (
@@ -219,6 +296,8 @@ const AuthorProfilePage = () => {
                 {modalType === 'followers' && '팔로워'}
                 {modalType === 'following' && '팔로잉'}
                 {modalType === 'portfolios' && '포트폴리오'}
+                {modalType === 'posts' && '게시글'}
+                {modalType === 'comments' && '댓글'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -250,13 +329,42 @@ const AuthorProfilePage = () => {
                     </button>
                   </div>
                 ))
-              ) : (
+              ) : modalType === 'portfolios' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {modalData.map((portfolio) => (
                     <PortfolioCard key={portfolio.id} portfolio={portfolio} />
                   ))}
                 </div>
-              )}
+              ) : modalType === 'posts' ? (
+                <div className="space-y-4">
+                  {modalData.map((post) => (
+                    <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
+                      <p className="text-gray-600 mb-3">{post.content}</p>
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <span>{new Date(post.createdAt).toLocaleDateString('ko-KR')}</span>
+                        <span>조회 {post.viewCount}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : modalType === 'comments' ? (
+                <div className="space-y-4">
+                  {modalData.map((comment) => (
+                    <div key={comment.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                      <p className="text-gray-900 mb-2">{comment.content}</p>
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <span>{new Date(comment.createdAt).toLocaleDateString('ko-KR')}</span>
+                        {comment.isAuthor && (
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                            작성자
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

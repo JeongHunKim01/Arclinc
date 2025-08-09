@@ -23,3 +23,5 @@ const GoogleAd = ({ adSlot, adFormat = 'auto', style = {} }) => {
 }
 
 export default GoogleAd
+
+
